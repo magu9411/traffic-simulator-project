@@ -7,9 +7,13 @@ import java.awt.Dimension;
 import java.awt.Font;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
+import java.awt.Point;
+import java.awt.Rectangle;
 import java.awt.RenderingHints;
 import java.awt.geom.Point2D;
 import java.util.List;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 
 public class TrafficPanel extends JPanel {
     private final SimulationEngine engine;
@@ -24,6 +28,12 @@ public class TrafficPanel extends JPanel {
         setPreferredSize(new Dimension(820, 500));
         setBackground(new Color(0x121212));
         setDoubleBuffered(true);
+        addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                handleClick(e.getPoint());
+            }
+        });
     }
 
     public void setSnapshot(SimulationSnapshot snapshot) {
@@ -81,36 +91,62 @@ public class TrafficPanel extends JPanel {
 
     private void drawSignals(Graphics2D g2) {
         SimulationEngine.SignalView signal = snapshot.signalView();
-        int size = 12;
-        // Main road light drawn above intersection; cross-road light drawn to the right.
-        int mainX = (int) signal.position().x - size / 2;
-        int mainY = (int) signal.position().y - 22;
-        int crossX = (int) signal.position().x + 12;
-        int crossY = (int) signal.position().y - size / 2;
+        LightPositions positions = computeLightPositions(signal);
 
         g2.setColor(Color.DARK_GRAY);
-        g2.fillRoundRect(mainX - 2, mainY - 2, size + 4, size + 4, 6, 6);
-        g2.fillRoundRect(crossX - 2, crossY - 2, size + 4, size + 4, 6, 6);
+        g2.fillRoundRect(positions.mainBounds.x - 2, positions.mainBounds.y - 2, positions.size + 4, positions.size + 4, 6, 6);
+        g2.fillRoundRect(positions.crossBounds.x - 2, positions.crossBounds.y - 2, positions.size + 4, positions.size + 4, 6, 6);
 
         g2.setColor(signal.mainColor());
-        g2.fillOval(mainX, mainY, size, size);
+        g2.fillOval(positions.mainBounds.x, positions.mainBounds.y, positions.size, positions.size);
         g2.setColor(signal.crossColor());
-        g2.fillOval(crossX, crossY, size, size);
+        g2.fillOval(positions.crossBounds.x, positions.crossBounds.y, positions.size, positions.size);
     }
 
     private void drawVehicles(Graphics2D g2) {
         for (SimulationEngine.VehicleView vehicle : snapshot.vehicleViews()) {
-            int size = vehicle.fromRamp() ? 10 : 12;
+            int size = 12;
+            int arc = size/2;
             int x = (int) vehicle.position().x - size / 2;
             int y = (int) vehicle.position().y - size / 2;
-            g2.setColor(vehicle.color());
-            g2.fillRoundRect(x, y, size, size, 6, 6);
+
+            int border = 2;
             g2.setColor(Color.BLACK);
-            g2.drawRoundRect(x, y, size, size, 6, 6);
+            g2.fillRoundRect(x - border, y - border, size + border * 2, size + border * 2, arc + border, arc + border);
+            g2.setColor(vehicle.color());
+            g2.fillRoundRect(x, y, size, size, arc, arc);
         }
     }
 
     private Point2D.Double midpoint(Point2D.Double a, Point2D.Double b) {
         return new Point2D.Double((a.x + b.x) / 2.0, (a.y + b.y) / 2.0);
+    }
+
+    private void handleClick(Point point) {
+        if (snapshot == null) {
+            return;
+        }
+        SimulationEngine.SignalView signal = snapshot.signalView();
+        LightPositions positions = computeLightPositions(signal);
+        if (positions.mainBounds.contains(point)) {
+            engine.execute(new SimulationCommands.SetPhaseCommand(SimulationEngine.Intersection.Phase.MAIN_GREEN));
+        } else if (positions.crossBounds.contains(point)) {
+            engine.execute(new SimulationCommands.SetPhaseCommand(SimulationEngine.Intersection.Phase.CROSS_GREEN));
+        }
+    }
+
+    private LightPositions computeLightPositions(SimulationEngine.SignalView signal) {
+        int size = 16;
+        int offset = 40;
+        int mainCenterX = (int) Math.round(signal.position().x + offset);
+        int mainCenterY = (int) Math.round(signal.position().y);
+        int crossCenterX = (int) Math.round(signal.position().x);
+        int crossCenterY = (int) Math.round(signal.position().y - offset);
+        Rectangle mainBounds = new Rectangle(mainCenterX - size / 2, mainCenterY - size / 2, size, size);
+        Rectangle crossBounds = new Rectangle(crossCenterX - size / 2, crossCenterY - size / 2, size, size);
+        return new LightPositions(mainBounds, crossBounds, size);
+    }
+
+    private record LightPositions(Rectangle mainBounds, Rectangle crossBounds, int size) {
     }
 }

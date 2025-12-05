@@ -10,7 +10,6 @@ import java.util.Random;
 public class SimulationEngineBuilder {
     private SimulationEngine.Road mainRoad;
     private SimulationEngine.Road crossRoad;
-    private SimulationEngine.Road onRamp;
     private Point2D.Double intersectionPoint;
     private SpawnStrategy spawnStrategy = new BiasedSpawnStrategy();
     private ColorStrategy colorStrategy = new PaletteColorStrategy();
@@ -34,12 +33,6 @@ public class SimulationEngineBuilder {
                 1,
                 60,
                 "Crossing");
-        builder.onRamp = new SimulationEngine.Road(
-                new Point2D.Double(160, 340),
-                new Point2D.Double(320, 240),
-                1,
-                55,
-                "On-Ramp");
         builder.intersectionPoint = new Point2D.Double(400, 220);
         return builder;
     }
@@ -83,7 +76,6 @@ public class SimulationEngineBuilder {
         VehicleFactory resolvedFactory = vehicleFactory != null ? vehicleFactory : new VehicleFactory(colorStrategy);
         Objects.requireNonNull(mainRoad, "main road");
         Objects.requireNonNull(crossRoad, "cross road");
-        Objects.requireNonNull(onRamp, "on-ramp");
         Objects.requireNonNull(intersectionPoint, "intersection point");
         return new SimulationEngine(this);
     }
@@ -94,10 +86,6 @@ public class SimulationEngineBuilder {
 
     SimulationEngine.Road getCrossRoad() {
         return crossRoad;
-    }
-
-    SimulationEngine.Road getOnRamp() {
-        return onRamp;
     }
 
     Point2D.Double getIntersectionPoint() {

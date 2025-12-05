@@ -17,7 +17,6 @@ import java.util.concurrent.CopyOnWriteArrayList;
 public class SimulationEngine {
     private final Road mainRoad;
     private final Road crossRoad;
-    private final Road onRamp;
     private final Point2D.Double intersectionPoint;
     private final Intersection intersection;
 
@@ -28,6 +27,7 @@ public class SimulationEngine {
     private final VehicleFactory vehicleFactory;
     private final List<SimulationObserver> observers = new CopyOnWriteArrayList<>();
 
+    private boolean manualControl;
     private double spawnPerMinute;
     private double targetSpeedLimit;
     private boolean laneClosure;
@@ -45,10 +45,9 @@ public class SimulationEngine {
     SimulationEngine(SimulationEngineBuilder builder) {
         this.mainRoad = builder.getMainRoad();
         this.crossRoad = builder.getCrossRoad();
-        this.onRamp = builder.getOnRamp();
         this.intersectionPoint = builder.getIntersectionPoint();
         this.intersection = new Intersection(mainRoad, crossRoad, intersectionPoint);
-        this.roads = List.of(mainRoad, crossRoad, onRamp);
+        this.roads = List.of(mainRoad, crossRoad);
         this.spawnPerMinute = builder.getSpawnPerMinute();
         this.targetSpeedLimit = builder.getTargetSpeedLimit();
         this.laneClosure = builder.isLaneClosure();
@@ -59,7 +58,9 @@ public class SimulationEngine {
 
     public void update(double deltaSeconds) {
         simTimeSeconds += deltaSeconds;
-        intersection.update(deltaSeconds);
+        if (!manualControl) {
+            intersection.update(deltaSeconds);
+        }
         spawnVehicles(deltaSeconds);
         moveVehicles(deltaSeconds);
         pruneDepartures();
@@ -82,6 +83,19 @@ public class SimulationEngine {
         laneClosure = closed;
     }
 
+    public void setManualPhase(Intersection.Phase phase) {
+        Objects.requireNonNull(phase, "phase");
+        manualControl = true;
+        intersection.setPhase(phase);
+        notifyObservers();
+    }
+
+    public void resumeAutomaticSignals() {
+        manualControl = false;
+        intersection.reset();
+        notifyObservers();
+    }
+
     public double getThroughputPerSecond() {
         return departures.isEmpty() ? 0.0 : departures.size() / THROUGHPUT_WINDOW_SECONDS;
     }
@@ -95,6 +109,7 @@ public class SimulationEngine {
         departures.clear();
         spawnAccumulator = 0;
         simTimeSeconds = 0;
+        manualControl = false;
         intersection.reset();
         SimulationConfig config = SimulationConfig.getInstance();
         spawnPerMinute = config.defaultSpawnPerMinute();
@@ -121,7 +136,7 @@ public class SimulationEngine {
         List<VehicleView> views = new ArrayList<>(vehicles.size());
         for (Vehicle vehicle : vehicles) {
             Point2D.Double position = vehicle.road.positionAlong(vehicle.position, vehicle.laneIndex, openLanesFor(vehicle.road));
-            views.add(new VehicleView(position, vehicle.color, vehicle.road == onRamp));
+            views.add(new VehicleView(position, vehicle.color));
         }
         return views;
     }
@@ -200,6 +215,10 @@ public class SimulationEngine {
 
             double distance = desiredSpeed * deltaSeconds;
             distance = applyIntersectionConstraint(vehicle, distance, desiredSpeed, deltaSeconds);
+            if (gap >= 0) {
+                double maxFollowDistance = Math.max(0, gap - MIN_GAP_PIXELS);
+                distance = Math.min(distance, maxFollowDistance);
+            }
             vehicle.position += distance;
             vehicle.speed = distance <= 0 ? 0 : distance / Math.max(1e-6, deltaSeconds);
 
@@ -268,7 +287,7 @@ public class SimulationEngine {
     public record RoadView(Point2D.Double start, Point2D.Double end, int openLanes, int totalLanes, String name) {
     }
 
-    public record VehicleView(Point2D.Double position, Color color, boolean fromRamp) {
+    public record VehicleView(Point2D.Double position, Color color) {
     }
 
     public record SignalView(Point2D.Double position, Color mainColor, Color crossColor, Intersection.Phase phase) {
@@ -405,6 +424,16 @@ public class SimulationEngine {
             double dx = p.x - road.start.x;
             double dy = p.y - road.start.y;
             return dx * road.unitX + dy * road.unitY;
+        }
+
+        private void setPhase(Phase phase) {
+            switch (phase) {
+                case MAIN_GREEN -> changeState(new MainGreenState());
+                case MAIN_YELLOW -> changeState(new MainYellowState());
+                case CROSS_GREEN -> changeState(new CrossGreenState());
+                case CROSS_YELLOW -> changeState(new CrossYellowState());
+                default -> throw new IllegalArgumentException("Unknown phase: " + phase);
+            }
         }
 
         private void changeState(TrafficLightState next) {

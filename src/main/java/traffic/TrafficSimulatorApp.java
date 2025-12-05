@@ -70,9 +70,9 @@ public class TrafficSimulatorApp extends JFrame {
         speedSlider.setMinorTickSpacing(10);
         speedSlider.setPaintLabels(true);
         speedSlider.setPaintTicks(true);
-        JLabel speedLabel = new JLabel("Speed limit: 70 px/s");
+        JLabel speedLabel = new JLabel("Speed limit: 70 mph");
         speedSlider.addChangeListener(e -> {
-            speedLabel.setText("Speed limit: " + speedSlider.getValue() + " px/s");
+            speedLabel.setText("Speed limit: " + speedSlider.getValue() + " mph");
             engine.execute(new SimulationCommands.SetSpeedLimitCommand(speedSlider.getValue()));
         });
 

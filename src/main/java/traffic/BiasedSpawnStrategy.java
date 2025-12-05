@@ -12,9 +12,8 @@ public class BiasedSpawnStrategy implements SpawnStrategy {
 
     public BiasedSpawnStrategy() {
         this(Map.of(
-                "Main Eastbound", 0.6,
-                "Crossing", 0.25,
-                "On-Ramp", 0.15
+                "Main Eastbound", 0.7,
+                "Crossing", 0.3
         ));
     }
 

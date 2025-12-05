@@ -7,6 +7,19 @@ public final class SimulationCommands {
     private SimulationCommands() {
     }
 
+    public static class SetPhaseCommand implements SimulationCommand {
+        private final SimulationEngine.Intersection.Phase phase;
+
+        public SetPhaseCommand(SimulationEngine.Intersection.Phase phase) {
+            this.phase = phase;
+        }
+
+        @Override
+        public void execute(SimulationEngine engine) {
+            engine.setManualPhase(phase);
+        }
+    }
+
     public static class SetSpawnRateCommand implements SimulationCommand {
         private final double perMinute;
 
